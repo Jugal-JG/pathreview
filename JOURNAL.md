@@ -33,6 +33,6 @@ refresh the relevant session state so each subsequent review uses current tool r
   and assertion style, and will add focused mocked-Redis tests for the chosen
   session-reset behavior.
 
-**Setup confirmation:** [ ] App runs locally at localhost:5173 (not yet confirmed: Docker is unavailable in this environment)
+**Setup confirmation:** [x] App runs locally at localhost:5173
 
-**Cohort ledger:** [ ] Issue added to cohort ledger (the shared ledger requires signing in before I can add the claim)
+**Cohort ledger:** [x] Issue added to cohort ledger

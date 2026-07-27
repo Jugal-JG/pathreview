@@ -26,6 +26,9 @@ class Orchestrator:
         self.tools = tools
         self.session_store = session_store
         self.tool_timeout = tool_timeout
+        # BUG (#43): lives for the orchestrator's lifetime and is never cleared
+        # per profile/session, so repeat reviews can be served stale results.
+        # See _execute_tool() and tests/unit/test_orchestrator_session_state.py.
         self.context_manager = ContextManager()
 
     def run(self, profile_id: str, profile_data: dict) -> dict:
@@ -62,6 +65,10 @@ class Orchestrator:
                 results[tool_name] = {"error": str(e), "success": False}
 
         # Persist state
+        # BUG (#43): merges old + new state and never calls
+        # self.session_store.delete(profile_id), so stale entries from a
+        # prior review are carried forward indefinitely instead of being
+        # cleared for this fresh review.
         if self.session_store:
             session_state.update(results)
             self.session_store.set(profile_id, session_state)
@@ -147,6 +154,10 @@ class Orchestrator:
             raise ValueError(f"Unknown tool: {tool_name}")
 
         # Check context cache
+        # BUG (#43): keyed only by tool_name + input hash, with no
+        # profile/session scoping or TTL, so a second review with the same
+        # tool_input (e.g. an unchanged repo name) reuses a prior review's
+        # result even if the user's portfolio changed elsewhere.
         input_hash = ContextManager.hash_input(tool_input)
         cached_result = self.context_manager.get_tool_result(tool_name, input_hash)
 

@@ -70,6 +70,10 @@ class SessionStore:
 
         Args:
             session_id: Session identifier
+
+        Note (issue #43): this method is never called from
+        Orchestrator.run() (agent/orchestrator.py), which is why stale
+        session state persists across separate review requests.
         """
         key = f"session:{session_id}"
 

@@ -56,3 +56,27 @@ serves a stale result from the first review instead of running fresh analysis.
 Need to decide whether the fix should scope/clear the `ContextManager` cache
 per profile via the existing but unused `SessionStore.delete()`, or drop the
 cross-request cache entirely — see Risks & unknowns in PLAN.md.
+
+## Week 9 — Solution building & PR submission
+
+### Check-in 1 (mid-week)
+
+**Current progress:**
+Implemented the fix for issue #43: `Orchestrator.run()` now clears the
+`ContextManager` cache and calls `SessionStore.delete(profile_id)` at the
+start of every run, and persists only the current run's results instead
+of merging with stale session state. Added `ContextManager.clear()`.
+Updated `tests/unit/test_orchestrator_session_state.py` with three tests
+covering the fix, session-state clearing, and in-request memoization —
+all passing. This completes sub-tasks 1, 2, and 4 from PLAN.md.
+
+**Next steps:**
+Confirm `make check` and `make test-unit` pass (excluding documented
+pre-existing failures), open the PR against `ascherj/pathreview`, share
+it in the peer-review Slack channel, and address any feedback before
+marking it ready for review.
+
+**Blockers:**
+None currently.
+
+---

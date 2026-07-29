@@ -26,13 +26,15 @@ class Orchestrator:
         self.tools = tools
         self.session_store = session_store
         self.tool_timeout = tool_timeout
-        # BUG (#43): lives for the orchestrator's lifetime and is never cleared
-        # per profile/session, so repeat reviews can be served stale results.
-        # See _execute_tool() and tests/unit/test_orchestrator_session_state.py.
         self.context_manager = ContextManager()
 
     def run(self, profile_id: str, profile_data: dict) -> dict:
         """Execute analysis plan for a profile.
+
+        Clears any cached tool results and session state from a previous
+        run for this profile before executing, so each review always
+        reflects fresh analysis instead of stale results from an earlier
+        review (see issue #43).
 
         Args:
             profile_id: Profile identifier
@@ -43,13 +45,14 @@ class Orchestrator:
         """
         logger.info("orchestrator_start", profile_id=profile_id)
 
+        # Reset per-run tool-result cache and any stored session state for
+        # this profile so this run cannot be served results from a prior run.
+        self.context_manager.clear()
+        if self.session_store:
+            self.session_store.delete(profile_id)
+
         # Build execution plan
         plan = self._build_plan(profile_data)
-
-        # Load previous session state if available
-        session_state = {}
-        if self.session_store:
-            session_state = self.session_store.get(profile_id) or {}
 
         # Execute plan
         results = {}
@@ -64,14 +67,9 @@ class Orchestrator:
                 logger.error("tool_execution_failed", tool=tool_name, error=str(e))
                 results[tool_name] = {"error": str(e), "success": False}
 
-        # Persist state
-        # BUG (#43): merges old + new state and never calls
-        # self.session_store.delete(profile_id), so stale entries from a
-        # prior review are carried forward indefinitely instead of being
-        # cleared for this fresh review.
+        # Persist this run's results as the current session state.
         if self.session_store:
-            session_state.update(results)
-            self.session_store.set(profile_id, session_state)
+            self.session_store.set(profile_id, results)
 
         logger.info("orchestrator_complete", profile_id=profile_id,
                    tools_executed=len(results))
@@ -153,11 +151,10 @@ class Orchestrator:
         if tool_name not in self.tools:
             raise ValueError(f"Unknown tool: {tool_name}")
 
-        # Check context cache
-        # BUG (#43): keyed only by tool_name + input hash, with no
-        # profile/session scoping or TTL, so a second review with the same
-        # tool_input (e.g. an unchanged repo name) reuses a prior review's
-        # result even if the user's portfolio changed elsewhere.
+        # Check context cache. This memoizes repeat tool calls with
+        # identical input *within* a single run() call; run() clears the
+        # cache at the start of every run so it never carries over between
+        # separate reviews of the same profile (see issue #43).
         input_hash = ContextManager.hash_input(tool_input)
         cached_result = self.context_manager.get_tool_result(tool_name, input_hash)
 

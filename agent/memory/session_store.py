@@ -68,12 +68,12 @@ class SessionStore:
     def delete(self, session_id: str) -> None:
         """Delete session data.
 
+        Called by Orchestrator.run() at the start of every run to clear
+        stale state from a prior review before executing fresh analysis
+        (see issue #43).
+
         Args:
             session_id: Session identifier
-
-        Note (issue #43): this method is never called from
-        Orchestrator.run() (agent/orchestrator.py), which is why stale
-        session state persists across separate review requests.
         """
         key = f"session:{session_id}"
 

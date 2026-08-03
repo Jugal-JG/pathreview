@@ -79,4 +79,30 @@ marking it ready for review.
 **Blockers:**
 None currently.
 
+### Check-in 2 (end of week)
+
+**PR link:** https://github.com/ascherj/pathreview/pull/360
+
+**Branch:** `fix/43-clear-agent-session-state`
+
+**What you built:**
+Fixed issue #43 by clearing the orchestrator's `ContextManager` cache and
+calling `SessionStore.delete(profile_id)` at the start of every
+`Orchestrator.run()` call, before building the plan. Previously, cached
+tool results and merged session state persisted indefinitely across
+separate reviews for the same profile; now each review starts from a
+clean slate and only the current run's results are persisted, while
+in-request memoization within a single run is unaffected.
+
+**Tests added or updated:**
+`tests/unit/test_orchestrator_session_state.py` — three tests: the tool
+re-executes on a second review instead of reusing a cached result,
+`SessionStore.delete()` is called per profile at the start of each run
+and only the latest run's results are persisted, and repeated calls to
+the same tool/input *within* a single run are still memoized.
+
+**Self-review confirmation:** [x] make check passes  [x] make test-unit passes
+
+**Draft PR feedback received from:** I haven't remembered the name but my TF from the breakout room on 7/28 has reviewed my PR.
+
 ---

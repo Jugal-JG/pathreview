@@ -106,3 +106,87 @@ the same tool/input *within* a single run are still memoized.
 **Draft PR feedback received from:** I haven't remembered the name but my TF from the breakout room on 7/28 has reviewed my PR.
 
 ---
+
+## Week 10 — Iteration & reflection
+
+### Reviewer feedback
+
+**Feedback received:** [ ] Yes  [x] No — still awaiting review
+
+**Summary of feedback:**
+No comments have come in on [PR #360](https://github.com/ascherj/pathreview/pull/360)
+since I marked it ready for review. My TF gave verbal feedback on the draft
+in a breakout room before I finalized it (noted in Check-in 2), but there
+has been no written feedback on the PR itself this week.
+
+**How you responded:**
+N/A — nothing to respond to yet. If comments arrive after this journal entry
+is graded, I'll address them and note the outcome even though the template
+doesn't have a later slot for it.
+
+---
+
+### Reflection
+
+**What was harder than you expected?**
+Proving the bug was real took longer than fixing it. The orchestrator's
+`ContextManager` cache and the unused `SessionStore.delete()` were easy to
+spot by reading the code, but I couldn't trust that reading alone — I had
+to actually instantiate `Orchestrator` with fake tools and run it twice to
+watch the `tool_result_cache_hit` log line fire before I believed the bug
+was real and not just a theoretical code smell. Getting to that point was
+also blocked by the local `.venv`, which had dangling symlinks
+(`python -> /usr/bin/python3`, which doesn't exist on Windows) — so `make
+run` and `make test-unit` couldn't work as documented, and I had to install
+`structlog`/`redis`/`pytest`/`ruff`/`black`/`mypy` against a system Python
+install just to exercise the code at all. None of that is issue #43's fault,
+but it ate a large share of the reproduction week.
+
+**What did you learn about working in a large codebase?**
+The bug wasn't a broken line, it was a *design* gap — the cache and session
+store worked exactly as written, they just had no invalidation policy.
+Fixing it meant understanding the intended lifecycle of `Orchestrator`
+(long-lived instance, many profiles, many reviews per profile) and asking
+"what should be cleared, and when?" — a question that doesn't show up from
+reading any single function in isolation. I also learned to distrust my own
+first read of "this looks wrong": my first instinct was to delete the
+cross-run cache entirely, but `_execute_tool`'s in-request memoization
+(same tool/input called twice inside one `run()`) is a legitimate, separate
+behavior that had to be preserved. I only caught that by writing
+`test_repeated_tool_call_within_a_single_run_is_still_memoized` and asking
+what the fix would break, not just what it would fix.
+
+**How did AI tools help — and where did they fall short?**
+AI was genuinely useful for the mechanical, verifiable parts: reading
+`orchestrator.py`, `session_store.py`, and `context_manager.py` together to
+trace the exact call path from `run()` to the cache check; writing the
+reproduction script and the pytest tests in the project's existing style;
+and — most valuably — running `ruff`/`black`/`mypy`/`pytest` against both
+the pre-fix and post-fix code (via a temporary `git worktree`) to get an
+honest, comparable before/after count instead of eyeballing a diff and
+guessing whether I'd introduced new failures. Where it fell short: it
+couldn't tell me whether the fix was the *right* fix — that judgment call
+(clear-and-delete vs. scope-by-profile vs. remove caching outright) needed
+me to decide what behavior the orchestrator is supposed to have for
+concurrent profiles, which isn't answerable by reading the file, and it
+couldn't substitute for actually running the reproduction and watching the
+log line change from `tool_cache_hit` to `tool_cache_miss`.
+
+**What would you do differently if you started over?**
+I'd check that `make setup` fully works — including the venv — in Week 7
+before committing to an issue, instead of discovering the broken symlinks
+in Week 8 while trying to reproduce the bug. I'd also write the "what
+should NOT change" test (the in-request memoization case) at the same time
+as the reproduction test, rather than after implementing the fix — it would
+have made the fix's constraints explicit from the start instead of
+something I noticed only once I was deciding how aggressive to make the
+cache-clearing logic.
+
+**What are you most proud of from this module?**
+The before/after verification work in Week 9 — using a `git worktree` at
+the pre-fix commit to run `ruff`, `black`, `mypy`, and the full
+`pytest tests/unit` suite in-place, so the "no new failures introduced"
+claim in my PR's Notes for Reviewers section is something I actually
+checked line-for-line (13 identical mypy errors, 6 identical ruff errors,
+40→39 failures with the only change being my own new tests passing)
+rather than something I merely asserted.
